@@ -1,0 +1,87 @@
+		ORG	0000H
+		SJMP	MAIN
+
+		ORG	0003H
+		SJMP	EOC_HANDLER
+
+MAIN:		SETB	EA
+		SETB	EX0
+		ACALL	PULSE_SC
+		SJMP	$
+
+EOC_HANDLER:
+		CLR	EA
+		; r0 e acc armazenam o valor lido do AD
+		MOV	A, P1
+		MOV	R0, A
+		; capturando o LSB
+		ANL	A, #0FH
+		MOV	LSB, A
+		; capturando o MSB
+		MOV	A, R0
+		ANL	A, #0F0H
+		RR	A
+		RR	A
+		RR	A
+		RR	A
+		MOV	MSB, A
+		; convertendo para o LSB para ASCII
+		MOV	A, LSB
+		CJNE	A, #0AH, TEST1
+TEST1:		JC	LT_0xA0_1
+		SJMP	GTE_0xA0_1
+LT_0xA0_1:	ADD	A, #030H
+		MOV	LSB, A
+		SJMP	CONV_MSB
+GTE_0xA0_1:	ADD	A, #037H
+		MOV	LSB, A
+		; convertendo para o MSB para ASCII
+CONV_MSB:	MOV	A, MSB
+		CJNE	A, #0AH, TEST2
+TEST2:		JC	LT_0xA0_2
+		SJMP	GTE_0xA0_2
+LT_0xA0_2:	ADD	A, #030H
+		MOV	MSB, A
+		SJMP	CONV_MSB
+GTE_0xA0_2:	ADD	A, #037H
+		MOV	MSB, A
+		; === FIM DE CONVERSAO. EXIBIR DADOS NO DISPLAY ===
+		ACALL	SHOW_DATA	; exibe dados no monitor de video
+		SETB	EA
+		ACALL	PULSE_SC	; inicia nova conversao de dados analogico-digital
+		RETI
+
+SHOW_DATA:
+		MOV	TMOD, #00000010B
+		MOV	TH0, #253
+		MOV	TL0, #253
+		SETB	TR0
+		MOV	SCON, #40H; MODO 1 DO CANAL SERIAL
+		; IMPRIME O MSB - JA ESTA CONVERTIDO EM ASCII
+		MOV	SBUF, MSB
+		JNB	TI, $
+		CLR	TI
+		; IMPRIME O LSB - JA ESTA CONVERTIDO EM ASCII
+		MOV	SBUF, LSB
+		JNB	TI, $
+		CLR	TI
+		; IMPRIME ESPACO PARA O PROXIMO VALOR LIDO
+		MOV	SBUF, #' '
+		JNB	TI, $
+		CLR	TI
+		RET
+
+PULSE_SC:
+		CLR	WR
+		; DELAY DE 50 uS
+		MOV	R7, #018h
+		NOP
+		DJNZ	R7, $
+		; FIM DE DELAY
+		SETB	WR
+		RET
+
+LSB		EQU	30H
+MSB		EQU	31H
+
+		END
